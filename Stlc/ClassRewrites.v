@@ -1,11 +1,12 @@
 Require Export Metalib.Metatheory.
-Require Export Stlc.Classes.
-Require Import Stlc.DefinitionsSyntax.
 Require Import Stlc.ClassInstances.
+Require Import Coq.Logic.StrictProp.
+Require Import Stlc.DefinitionsSyntax.
+
 
 (* Tactics for simplifying syntax definitions *)
 
-Lemma fv_exp_var_b : forall n (m: fin n), fv (var_b m) = {}. 
+Lemma fv_exp_var_b : forall n (m: nat) (prf : Squash (m < n)), fv (var_b m prf) = {}. 
 Proof. reflexivity. Qed.
 Lemma fv_exp_var_f : forall n (x:atom), fv (var_f (n:=n) x) = {{x}}.
 Proof. reflexivity. Qed.
@@ -17,7 +18,7 @@ Proof. reflexivity. Qed.
 #[export] Hint Rewrite fv_exp_var_b fv_exp_var_f fv_exp_abs fv_exp_app : fv.
 
 (* Re-define behavior of size in terms of size_exp *)
-Lemma size_exp_var_b : forall n (m: fin n), size (var_b m) = 1. 
+Lemma size_exp_var_b : forall n (m: nat) (prf : Squash (m < n)), size (var_b m prf) = 1. 
 Proof. reflexivity. Qed.
 Lemma size_exp_var_f : forall n (x:atom), size (var_f (n:=n) x) = 1.
 Proof. reflexivity. Qed.
@@ -28,8 +29,21 @@ Proof. reflexivity. Qed.
 
 #[export] Hint Rewrite size_exp_var_b size_exp_var_f size_exp_abs size_exp_app : size.
 
-Lemma weaken_exp_var_b : forall n (m: fin n),   weaken  (var_b m) = var_b (increase_fin m).
-Proof. reflexivity. Qed.
+Lemma lt_n_S_stt_squash : forall {n m}, Squash (n < m) -> Squash (1 + n < 1 + m).
+Proof.
+  inversion 1.
+  constructor.
+  apply Arith_prebase.lt_n_S_stt; auto.
+Qed.
+
+From Equations Require Import Equations.
+
+Lemma weaken_exp_var_b : forall n (m: nat) (prf : Squash (m < n)),
+    weaken  (var_b m prf) = var_b (1 + m) (lt_n_S_stt_squash prf).
+Proof. intros.
+       
+simp weaken.
+reflexivity. Qed.
 Lemma weaken_exp_var_f : forall n (x:atom), weaken (var_f (n:=n) x) = var_f x.
 Proof. reflexivity. Qed.
 Lemma weaken_exp_abs : forall n (e: exp (S n)), weaken (abs e) = abs (weaken e).

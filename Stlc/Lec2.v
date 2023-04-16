@@ -15,9 +15,7 @@ From Equations Require Import Equations.
 Require Import Metalib.Metatheory.
 Require Import Stlc.Classes.
 Require Import Stlc.ClassInstances.
-Require Import Stlc.ClassRewrites.
 Require Import Stlc.DefinitionsTyping.
-Require Import Stlc.Fin.
 Require Import Stlc.DefinitionsSyntax.
 
 
@@ -442,6 +440,7 @@ Proof.
     eapply binds_mid_eq; eauto.
     subst.
     eapply typing_weakening; eauto.
+    
   + eapply typing_var; eauto.
 Qed.
 
