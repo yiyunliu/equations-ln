@@ -637,10 +637,18 @@ Proof.
      [@], we can supply the argument to nil explicitly. *)
   remember (@nil (atom * typ)) as E.
 
-  induction H.
-  + sfirstorder.
-  + hauto l:on ctrs:step.
-  + hauto q:on inv:typing ctrs:step.
+  induction H; subst.
+  + inversion H0. subst. inversion H5.
+  + left. simpl. auto.
+  + destruct IHtyping1; auto.
+     ++ destruct e1; simpl in H2; try done; clear H2.
+        (* inversion H. inversion H2. subst. clear H2. *)
+        right.
+        eexists; eauto.
+     ++ destruct H2 as [e1' h].
+        right.
+        exists (app e1' e2).
+        eauto.
 Qed.
 
 (*************************************************************************)
