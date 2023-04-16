@@ -29,21 +29,17 @@ Proof. reflexivity. Qed.
 
 #[export] Hint Rewrite size_exp_var_b size_exp_var_f size_exp_abs size_exp_app : size.
 
-Lemma lt_n_S_stt_squash : forall {n m}, Squash (n < m) -> Squash (1 + n < 1 + m).
+Lemma lt_lt_succ_r_squash : forall {n m}, Squash (n < m) -> Squash (n < 1 + m).
 Proof.
   inversion 1.
   constructor.
-  apply Arith_prebase.lt_n_S_stt; auto.
+  apply Nat.lt_lt_succ_r; auto.
 Qed.
 
-From Equations Require Import Equations.
-
 Lemma weaken_exp_var_b : forall n (m: nat) (prf : Squash (m < n)),
-    weaken  (var_b m prf) = var_b (1 + m) (lt_n_S_stt_squash prf).
-Proof. intros.
-       
-simp weaken.
-reflexivity. Qed.
+    weaken_exp  (var_b m prf) = var_b m (lt_lt_succ_r_squash prf).
+Proof. reflexivity. Qed.
+
 Lemma weaken_exp_var_f : forall n (x:atom), weaken (var_f (n:=n) x) = var_f x.
 Proof. reflexivity. Qed.
 Lemma weaken_exp_abs : forall n (e: exp (S n)), weaken (abs e) = abs (weaken e).
@@ -53,38 +49,38 @@ Proof. reflexivity. Qed.
 
 #[export] Hint Rewrite weaken_exp_var_b weaken_exp_var_f weaken_exp_abs weaken_exp_app : weaken.
 
-Lemma close_exp_var_b : forall n x (m: fin n),   close x (var_b m) = var_b (increase_fin m).
-Proof. reflexivity. Qed.
-Lemma close_exp_var_f : forall n (x1 x2:atom), close x1 (var_f (n:=n) x2) = if (x1 == x2) then (var_b (gof n)) else (var_f x2).
-Proof. reflexivity. Qed.
-Lemma close_exp_abs : forall n (e: exp (S n)) x1, close x1 (abs e) = abs (close x1 e).
-Proof. reflexivity. Qed.
-Lemma close_exp_app : forall n (e1 : exp n) (e2: exp n) x1, close x1 (app e1 e2) = app (close x1 e1) (close x1 e2).
-Proof. reflexivity. Qed.
+(* Lemma close_exp_var_b : forall n x (m: nat) (prf : Squash (m < n)),   close x (var_b m prf) = var_b m (lt_lt_succ_r_squash prf). *)
+(* Proof. reflexivity. Qed. *)
+(* Lemma close_exp_var_f : forall n (x1 x2:atom), close x1 (var_f (n:=n) x2) = if (x1 == x2) then (var_b (gof n)) else (var_f x2). *)
+(* Proof. reflexivity. Qed. *)
+(* Lemma close_exp_abs : forall n (e: exp (S n)) x1, close x1 (abs e) = abs (close x1 e). *)
+(* Proof. reflexivity. Qed. *)
+(* Lemma close_exp_app : forall n (e1 : exp n) (e2: exp n) x1, close x1 (app e1 e2) = app (close x1 e1) (close x1 e2). *)
+(* Proof. reflexivity. Qed. *)
 
-#[export] Hint Rewrite close_exp_var_b close_exp_var_f close_exp_abs close_exp_app : close.
+(* #[export] Hint Rewrite close_exp_var_b close_exp_var_f close_exp_abs close_exp_app : close. *)
 
-Lemma open_exp_var_b : forall n (u:exp n) (m: fin (S n)), 
-    open u (var_b m) = 
-      match decrease_fin n m with
-      | Some f => var_b f
-      | None => u
-      end.
-Proof. reflexivity. Qed.
-Lemma open_exp_var_f : forall n (u:exp n) (x:atom), open u (var_f (n:= S n) x) = var_f x.
-Proof. reflexivity. Qed.
+(* Lemma open_exp_var_b : forall n (u:exp n) (m: fin (S n)),  *)
+(*     open u (var_b m) =  *)
+(*       match decrease_fin n m with *)
+(*       | Some f => var_b f *)
+(*       | None => u *)
+(*       end. *)
+(* Proof. reflexivity. Qed. *)
+(* Lemma open_exp_var_f : forall n (u:exp n) (x:atom), open u (var_f (n:= S n) x) = var_f x. *)
+(* Proof. reflexivity. Qed. *)
 
-Lemma open_exp_abs : forall n (u:exp n) (e: exp (S (S n))), 
-    open u (abs e) = abs (open (weaken u) e).
-Proof. reflexivity. Qed. 
-Lemma open_exp_app : forall n (u:exp n) (e1 : exp (S n)) (e2: exp (S n)), 
-    open u (app e1 e2) = app (open u e1) (open u e2).
-Proof. reflexivity. Qed.
+(* Lemma open_exp_abs : forall n (u:exp n) (e: exp (S (S n))),  *)
+(*     open u (abs e) = abs (open (weaken u) e). *)
+(* Proof. reflexivity. Qed.  *)
+(* Lemma open_exp_app : forall n (u:exp n) (e1 : exp (S n)) (e2: exp (S n)),  *)
+(*     open u (app e1 e2) = app (open u e1) (open u e2). *)
+(* Proof. reflexivity. Qed. *)
 
-#[export] Hint Rewrite open_exp_var_b open_exp_var_f open_exp_abs open_exp_app : open.
+(* #[export] Hint Rewrite open_exp_var_b open_exp_var_f open_exp_abs open_exp_app : open. *)
 
-Lemma subst_exp_var_b : forall n (u:exp n) (y:atom) (m: fin n), 
-    subst u y (var_b m) = var_b m.
+Lemma subst_exp_var_b : forall n (u:exp n) (y:atom) (m: nat) (prf : Squash (m < n)), 
+    subst u y (var_b m prf) = var_b m prf.
 Proof. reflexivity. Qed.
 Lemma subst_exp_var_f : forall n (u:exp n) (y:atom) (x:atom), 
     subst u y (var_f (n:=n) x) = if x == y then u else var_f x.

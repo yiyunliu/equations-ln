@@ -15,6 +15,7 @@ From Equations Require Import Equations.
 Require Import Metalib.Metatheory.
 Require Import Stlc.Classes.
 Require Import Stlc.ClassInstances.
+Require Import Stlc.ClassRewrites.
 Require Import Stlc.DefinitionsTyping.
 Require Import Stlc.DefinitionsSyntax.
 
@@ -561,12 +562,16 @@ Lemma preservation : forall (E : ctx) e e' T,
 Proof.
   intros E e e' T H.
   generalize e'.
-  dependent induction H; intros e0' S; depelim S; subst.
-  - depelim H. inversion H0. subst.
-    pick fresh x for (L \u fv e0).
+  induction H; intros e0' S; depelim S; subst; try congruence.
+  - inversion H1; subst.
+    inversion H; subst.
+    pick fresh x for (L \u dom G \u fv e0).
+    destruct_notin.
+    specialize (H5 x ltac:(auto)).
     rewrite (subst_intro _ _ x); auto.
-    eapply typing_subst_simple; auto.
-  - eauto.
+    eapply typing_subst_simple; eauto.
+  - inversion H1; subst.
+    econstructor; eauto.
 Qed.
 
 (* NOTE: instead of inversion for step derivation, need to use depelim. Otherwise get 
@@ -615,7 +620,7 @@ Qed.
   *)
 
 
-
+From Hammer Require Import Tactics.
 Lemma progress : forall e T,
   typing nil e T ->
   is_value e \/ exists e', step e e'.
@@ -632,19 +637,10 @@ Proof.
      [@], we can supply the argument to nil explicitly. *)
   remember (@nil (atom * typ)) as E.
 
-  induction H; subst.
-  + inversion H0. subst. inversion H5.
-  + left. simpl. auto.
-  + destruct IHtyping1; auto.
-     ++ depelim e1; simpl in H2; try done; clear H2.
-        depelim H. inversion H2. subst. clear H2.
-        right.
-        exists (open e2 e1).
-        eauto.
-     ++ destruct H2 as [e1' h].  
-        right.
-        exists (app e1' e2).
-         eauto.
+  induction H.
+  + sfirstorder.
+  + hauto l:on ctrs:step.
+  + hauto q:on inv:typing ctrs:step.
 Qed.
 
 (*************************************************************************)
