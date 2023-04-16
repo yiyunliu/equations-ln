@@ -216,8 +216,8 @@ Fixpoint open_exp_wrt_exp {k:nat} (u:exp k)
 
 Equations close_exp_wrt_exp {k : nat} (x1 : var) (e1 : exp k) : exp (S k) :=
   close_exp_wrt_exp x1 (var_b m _) with lt_dec m k := {
-    | left _ => var_b k _
-    | _ => var_b (S k) _
+    | left _ => var_b m _
+    | _ => var_b (S m) _
     };
   close_exp_wrt_exp x1 (@var_f k x2) := 
     if (x1 == x2) then (var_b k _) else (var_f x2);

@@ -17,6 +17,11 @@ Import Coq.Classes.RelationClasses.
 Require Import Lia.
 
 Require Import Stlc.DefinitionsSyntax.
+From Hammer Require Import Tactics.
+From Coq Require Import Logic.StrictProp.
+
+Obligation Tactic := hauto l:on inv:Squash.
+From Coq Require Import ssreflect.
 
 (* This file was originally produced by the LNgen tool. It has been modified to 
    use the well-scoped expressions.
@@ -48,7 +53,6 @@ Ltac noconf_exp :=
     | [ H : abs _ = abs _ |- _ ] => noconf H
     | [ H : app _ _ = app _ _ |- _ ] => noconf H
   end.
-
 
 (** Additional hint declarations. *)
 
@@ -140,7 +144,7 @@ Lemma size_exp_open_exp_wrt_exp_var :
   size_exp (open_exp_wrt_exp (var_f x) e) = size_exp e).
 Proof.
 intros k e x.
-dependent induction e; default_simp. destruct_option; default_simp.
+dependent induction e; default_simp. (* destruct_option; default_simp. *)
 Qed.
 
 #[global] Hint Resolve size_exp_open_exp_wrt_exp_var : lngen.
@@ -152,26 +156,37 @@ Qed.
 Ltac default_auto ::= auto with lngen brute_force; tauto.
 Ltac default_autorewrite ::= simp_stlc.
 
-
 Lemma close_exp_wrt_exp_inj :
 (forall k (e1 : exp k) e2 x1,
   close_exp_wrt_exp x1 e1 = close_exp_wrt_exp x1 e2 ->
   e1 = e2).
 Proof.
-  intros k e1 e2 x1.
-  induction e1, e2; simp close_exp_wrt_exp; intros.
-  all:
-    noconf H;
-    repeat lazymatch goal with
-           | [ H: increase_fin ?X = increase_fin ?Y |- _ ] =>
-               apply increase_fin_inj in H; subst; auto
-           | [ H: increase_fin ?X = gof ?Y |- _ ] => symmetry in H
-           | [ H: gof ?X = increase_fin ?Y |- _ ] =>
-               apply increase_not_n in H; contradiction
-           | [ H: context[?X == ?Y] |- _ ] =>
-               destruct (X == Y); subst; noconf H; auto
-           | _ => f_equal; intuition
-           end.
+  intros k e1 x1.
+  induction e1; move => x0.
+  - dependent inversion x1; subst; simp close_exp_wrt_exp.
+    + case : lt_dec => ? /=; 
+        case : lt_dec => ?; hauto l:on.
+    + case : lt_dec => ?; simpl.
+      case : eq_dec => ?; simpl; [case ; lia  | done].
+      case : eq_dec => ?; simpl; [case ; lia | done].
+    + by case : lt_dec => ?.
+    + by case : lt_dec => ?.
+  - dependent inversion x1; subst; simp close_exp_wrt_exp; case eq_dec => ?; subst; try congruence.
+    + case : lt_dec => ?; 
+      case; lia.
+    + by case : lt_dec => ?.
+    + by case : eq_dec => ?; subst.
+    + case : eq_dec => ?; subst; congruence; case.
+  - dependent inversion x1; subst; simp close_exp_wrt_exp.
+    + by case : lt_dec => ?.
+    + by case : eq_dec => ?.
+    + hauto lq:on rew:off.
+    + done.
+  - dependent inversion x1; subst; simp close_exp_wrt_exp.
+    + by case : lt_dec => ?.
+    + by case : eq_dec => ?.
+    + done.
+    + hauto lq:on rew:off.
 Qed.
 
 #[export] Hint Immediate close_exp_wrt_exp_inj : lngen.
@@ -181,11 +196,24 @@ Lemma close_exp_wrt_exp_open_exp_wrt_exp :
   x1 `notin` fv_exp e1 ->
   close_exp_wrt_exp x1 (open_exp_wrt_exp (var_f x1) e1) = e1).
 Proof.
-intros. 
-dependent induction e1.
-all: simp_stlc.
-all: default_simp.
-destruct decrease_fin eqn:EQ; default_simp. 
+  intros. 
+  dependent induction e1; simp open_exp_wrt_exp close_exp_wrt_exp; simpl.
+  - case : lt_eq_lt_dec; simp close_exp_wrt_exp; simpl.
+    + case => a; subst.
+      * simp close_exp_wrt_exp.
+        case : lt_dec => ?; simpl; done.
+      * simp close_exp_wrt_exp.
+        by case : eq_dec.
+    + move => b; simp close_exp_wrt_exp.
+      case : lt_dec => ?; subst; simpl.
+      * lia.
+      * apply sEmpty_ind.
+        inversion s; move {s H}.
+        exfalso.
+        lia.
+  - case : eq_dec => ?; subst; simpl in *; [fsetdec | done].
+  - hauto lq:on rew:off.
+  - hauto l:on.
 Qed.
 
 #[global] Hint Resolve close_exp_wrt_exp_open_exp_wrt_exp : lngen.
@@ -197,6 +225,8 @@ Lemma open_exp_wrt_exp_close_exp_wrt_exp :
   open_exp_wrt_exp (var_f x1) (close_exp_wrt_exp x1 e1) = e1).
 Proof.
   intros n1 e1. dependent induction e1; default_simp.
+  apply sEmpty_ind.
+  sfirstorder.
 Qed.
 
 #[global] Hint Resolve open_exp_wrt_exp_close_exp_wrt_exp : lngen.
@@ -221,6 +251,9 @@ Proof.
  all: default_simp.
  all: try (rewrite <- E1 in E2; apply decrease_fin_inj in E2).
  all: eauto.
+ have ? : m0 = m by lia.
+ subst.
+ reflexivity.
 Qed.
 
 #[export] Hint Immediate open_exp_wrt_exp_inj : lngen.
@@ -238,6 +271,8 @@ Lemma close_exp_wrt_exp_weaken_exp :
 Proof.
 intros.
 dependent induction e1; default_simp.
+apply sEmpty_ind.
+sfirstorder.
 Qed.
 
 #[global] Hint Resolve close_exp_wrt_exp_weaken_exp : lngen.
@@ -248,7 +283,9 @@ forall n1 (e2 : exp n1) e1,
   open_exp_wrt_exp e1 (weaken_exp e2) = e2.
 Proof.
 intros n1 e2.
-dependent induction e2; default_simp.
+dependent induction e2; default_simp;
+apply sEmpty_ind;
+case : s; lia.
 Qed.
 #[global] Hint Resolve open_exp_wrt_exp_weaken_exp : lngen.
 #[export] Hint Rewrite open_exp_wrt_exp_weaken_exp using solve [auto] : lngen.
@@ -453,6 +490,8 @@ Proof.
 intros n e1 e2 x1.
 dependent induction e1.
 all: default_simp.
+apply sEmpty_ind.
+sfirstorder.
 Qed.
 
 #[global] Hint Resolve subst_exp_wrt_exp_spec : lngen.
@@ -487,12 +526,10 @@ dependent induction e2; intros.
 all: default_simp.
 all: try destruct (decrease_fin n f) eqn:E.
 all: default_simp.
-symmetry. eauto using decrease_increase_fin.
-symmetry. eauto using decrease_to_fin.
-specialize (IHe2 _ e2 ltac:(auto) ltac:(auto)).
-specialize (IHe2 (weaken_exp e1)).
-eapply IHe2; eauto.
-all: default_simp. 
+apply sEmpty_ind.
+case : s; lia.
+rewrite -IHe2; eauto.
+by rewrite fv_exp_weaken_exp.
 Qed.
 
 #[global] Hint Resolve subst_exp_wrt_exp_close_exp_wrt_exp_open_exp_wrt_exp : lngen.
@@ -516,8 +553,6 @@ forall n1 (e1 : exp (S n1)) x1 e2,
   open_exp_wrt_exp e2 e1 = subst_exp_wrt_exp e2 x1 (open_exp_wrt_exp (var_f x1) e1).
 Proof.
 dependent induction e1; default_simp.
-all: try destruct decrease_fin eqn:E.
-all: default_simp.
 Qed.
 
 #[global] Hint Resolve subst_exp_wrt_exp_intro : lngen.
