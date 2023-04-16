@@ -16,7 +16,7 @@ Require Import Relation_Operators Program.
 Close Scope program_scope.
 From Equations Require Import Equations.
 
-Require Export Stlc.Fin.
+Require Import Coq.Logic.StrictProp.
 
 (***********************************************************************)
 (** * Syntax of STLC *)
@@ -41,11 +41,17 @@ Scheme Equality for typ.
 (* Expressions are indexed by the number of *bound variables*
    that appear in terms. *)
 
-Inductive exp : nat ->  Set :=  (*r expressions *)
- | var_b : forall {n}, fin n -> exp n
- | var_f : forall {n} (x:var), exp n
- | abs   : forall {n} (e:exp (S n)), exp n
- | app   : forall {n} (e1:exp n) (e2:exp n), exp n.
+Inductive exp (n : nat) : Set :=  (*r expressions *)
+ | var_b : forall m, Squash (m < n) -> exp n
+ | var_f : forall (x:var), exp n
+ | abs   : forall (e:exp (S n)), exp n
+ | app   : forall (e1:exp n) (e2:exp n), exp n.
+
+Arguments var_b {n}%type_scope.
+Arguments var_f {n}%type_scope.
+Arguments abs {n}%type_scope.
+Arguments app {n}%type_scope.
+
 
 (* [Signature] creates a sigma type that allowing packing values with their
    constructor index.
@@ -54,13 +60,13 @@ Inductive exp : nat ->  Set :=  (*r expressions *)
    discrimination of constructors: That is, two values with the same
    constructor are equal if their arguments are also equal. [NoConfusionHom]
    produces a homogenous relation of the same. *)
-Derive Signature NoConfusion NoConfusionHom for exp.
+(* Derive Signature NoConfusion NoConfusionHom for exp. *)
 
 (* This should be part of metalib *)
 #[local] Instance Atom_EqDec : EqDec Atom.atom := Atom.eq_dec.
 
 (* Decidable equality for expressions *)
-Derive Subterm EqDec for exp.
+(* Derive Subterm EqDec for exp. *)
 
 (* Calculate the size of an expression. We could do this 
    with equations, but it is simple enough not to. *)
@@ -68,7 +74,7 @@ Fixpoint size_exp {n} (e1 : exp n) : nat :=
   match e1 with
     | abs e2 => 1 + (size_exp e2)
     | var_f x1 => 1
-    | var_b m => 1
+    | var_b _ _ => 1
     | app e2 e3 => 1 + (size_exp e2) + (size_exp e3)
   end.
 
@@ -90,31 +96,21 @@ Fixpoint size_exp {n} (e1 : exp n) : nat :=
     As a result, we weaken u when going under a binder.
 
  *)
-
+From Hammer Require Import Tactics.
 (* Weaken the number of bound variables allowed in an expression by 1 *)
+Obligation Tactic := hauto l:on inv:Squash.
 
 Equations weaken_exp {n} (e : exp n): exp (S n):= {
-  weaken_exp  (var_b m) => var_b (increase_fin m);
+  weaken_exp  (var_b m _) => var_b m _;
   weaken_exp  (var_f x) => var_f x;
   weaken_exp  (abs t)   => abs (weaken_exp t);
   weaken_exp  (app f t) => app (weaken_exp f) (weaken_exp t)
   }. 
 
-(* Can also write this as a Fixpoint. But, let's do everything with 
-   equations*)
-(*
-Fixpoint weaken_exp {n} (e : exp n) : exp (S n) :=
-  match e with 
-  | var_b m => var_b (increase_fin m)
-  | var_f x => var_f x
-  | abs t => abs (weaken_exp t)
-  | app f t => app (weaken_exp f) (weaken_exp t)
-  end. *)
-
 (* Substitute for a free variable. *)
 Equations subst_exp_wrt_exp {n} (u:exp n) (y:var) (e:exp n) : exp n :=
-  subst_exp_wrt_exp u y (var_b m)   := 
-    var_b m;
+  subst_exp_wrt_exp u y (var_b m prf)   := 
+    var_b m prf;
   subst_exp_wrt_exp u y (var_f x)   := 
     if x == y then u else var_f x;
   subst_exp_wrt_exp u y (abs e1)    := 
@@ -135,7 +131,7 @@ Equations subst_exp_wrt_exp {n} (u:exp n) (y:var) (e:exp n) : exp n :=
 
 Fixpoint fv_exp {n} (e_5:exp n) : vars :=
   match e_5 with
-  | (var_b m)   => {}
+  | (var_b _ _)   => {}
   | (var_f x)   => {{x}}
   | (abs e)     => fv_exp e
   | (app e1 e2) => fv_exp e1 `union` fv_exp e2
@@ -167,9 +163,10 @@ end.
 (* This is only correct if we call it with exp 0 *)
 
 Equations open_exp_wrt_exp {k:nat} (u:exp k) (e:exp (S k)) : exp k :=
-  open_exp_wrt_exp u (var_b m) with decrease_fin k m := {
-    | None => u
-    | Some f => var_b f
+  open_exp_wrt_exp u (var_b m _) with lt_eq_lt_dec m k := {
+    | inleft (left _) => var_b m _
+    | inleft (right _) => u
+    | inright _ => var_b (m - 1) _
     };
   open_exp_wrt_exp u (var_f x)   := var_f x;
   open_exp_wrt_exp u (abs e)     := 
@@ -218,10 +215,12 @@ Fixpoint open_exp_wrt_exp {k:nat} (u:exp k)
    introduce it at the current binding depth using [gof].  *)
 
 Equations close_exp_wrt_exp {k : nat} (x1 : var) (e1 : exp k) : exp (S k) :=
-  close_exp_wrt_exp x1 (var_b m) := 
-    var_b (increase_fin m);
+  close_exp_wrt_exp x1 (var_b m _) with lt_dec m k := {
+    | left _ => var_b k _
+    | _ => var_b (S k) _
+    };
   close_exp_wrt_exp x1 (@var_f k x2) := 
-    if (x1 == x2) then (var_b (gof k)) else (var_f x2);
+    if (x1 == x2) then (var_b k _) else (var_f x2);
   close_exp_wrt_exp x1 (abs e2) := 
     abs (close_exp_wrt_exp x1 e2);
   close_exp_wrt_exp x1 (app e2 e3) := 
