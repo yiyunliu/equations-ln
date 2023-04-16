@@ -16,12 +16,11 @@ Require Import Utf8 Arith Compare_dec Lia.
 Set Warnings "-notation-overridden".
 Require Import Relation_Operators Program.
 Close Scope program_scope.
-From Equations Require Import Equations.
 
 Require Import Stlc.DefinitionsSyntax.
-Require Export Stlc.ClassInstances.
-Import SyntaxNotations.
-Open Scope syntax_scope.
+(* Require Export Stlc.ClassInstances. *)
+(* Import SyntaxNotations. *)
+(* Open Scope syntax_scope. *)
 
 (***********************************************************************)
 (** * Typing contexts *)
@@ -69,14 +68,14 @@ Inductive typing : ctx -> exp 0 -> typ -> Prop :=
      binds x T G  ->
      typing G (var_f x) T
  | typing_abs : forall (L:vars) (G:ctx) (T1:typ) (e:exp 1) (T2:typ),
-     (forall x , x `notin` L -> typing ([(x,T1)] ++ G) (e ^ var_f x) T2)  ->
+     (forall x , x `notin` L -> typing ([(x,T1)] ++ G) (open_exp_wrt_exp e (var_f x)) T2)  ->
      typing G (abs e) (typ_arrow T1 T2)
  | typing_app : forall (G:ctx) (e1 e2:exp 0) (T2 T1:typ),
      typing G e1 (typ_arrow T1 T2) ->
      typing G e2 T1 ->
      typing G (app e1 e2) T2 .
 
-Derive Signature for typing.
+(* Derive Signature for typing. *)
 
 (***********************************************************************)
 (** * Values and Small-step Evaluation *)
@@ -99,11 +98,9 @@ Definition is_value (e : exp 0) : Prop :=
 
 Inductive step : exp 0 -> exp 0 -> Prop :=
  | step_beta : forall (e1:exp 1)(e2:exp 0),
-     step (app (abs e1) e2) (e1 ^ e2)
+     step (app (abs e1) e2) (open_exp_wrt_exp e1 e2)
  | step_app : forall (e1 e2 e1':exp 0),
      step e1 e1' ->
      step (app e1 e2) (app e1' e2).
-
-Derive Signature for step.
 
 #[global] Hint Constructors typing step : core.

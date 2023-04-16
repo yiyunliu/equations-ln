@@ -10,21 +10,10 @@ Require Import Utf8 Arith Compare_dec Lia.
 Set Warnings "-notation-overridden".
 Require Import Relation_Operators Program.
 Close Scope program_scope.
-From Equations Require Import Equations.
 
 Require Import Metalib.Metatheory.
-Require Import Stlc.Classes.
-Require Import Stlc.ClassInstances.
-Require Import Stlc.ClassRewrites.
 Require Import Stlc.DefinitionsTyping.
-Require Import Stlc.Fin.
 Require Import Stlc.DefinitionsSyntax.
-
-
-
-Opaque Syntax_exp.
-
-Import SyntaxNotations.
 
 
 (*************************************************************************)
@@ -170,7 +159,7 @@ Inductive typing_e : ctx -> exp 0 -> typ -> Prop :=
       typing_e E (var_f x) T
   | typing_e_abs : forall x E e T1 T2,
       x `notin` dom E \u fv_exp e ->
-      typing_e ([(x, T1)] ++ E) (e ^ var_f x) T2 ->
+      typing_e ([(x, T1)] ++ E) (open_exp_wrt_exp e (var_f x)) T2 ->
       typing_e E (abs e) (typ_arrow T1 T2)
   | typing_e_app : forall E e1 e2 T1 T2,
       typing_e E e1 (typ_arrow T1 T2) ->
@@ -432,10 +421,10 @@ Lemma typing_subst_var_case : forall (E F : ctx) u S T (z x : atom),
   binds x T (F ++ [(z,S)] ++ E) ->
   uniq (F ++ [(z,S)] ++ E) ->
   typing E u S ->
-  typing (F ++ E) ([z ~> u] (var_f x)) T.
+  typing (F ++ E) (subst_exp_wrt_exp u z (var_f x)) T.
 Proof.
   intros E F u S T z x H J K.
-  simp subst.
+  simpl.
   destruct (x == z); simpl. 
   + subst. 
     assert (T = S). 
@@ -473,12 +462,12 @@ Qed.
 Lemma typing_subst : forall (E F : ctx) e u S T (z : atom),
   typing (F ++ [(z,S)] ++ E) e T ->
   typing E u S ->
-  typing (F ++ E) ([z ~> u] e) T.
+  typing (F ++ E) (subst_exp_wrt_exp u z e) T.
 Proof.
   intros.
   dependent induction H.
   - eapply typing_subst_var_case; eauto.
-  - simp subst.
+  - simpl.
     pick fresh x and apply typing_abs.
     simp syntax. (* subst_open_var *)
     rewrite_env (((x ~ T1)++F)++E).

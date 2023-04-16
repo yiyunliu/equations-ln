@@ -1,14 +1,9 @@
 Require Import Coq.Logic.FunctionalExtensionality.
 Require Import Coq.Program.Equality.
 Require Import Program.
-From Equations Require Import Equations Signature.
 Require Import Coq.Classes.EquivDec.
 Require Import Arith.
 Close Scope program_scope.
-
-Set Implicit Arguments.
-Unset Strict Implicit.
-Unset Printing Implicit Defensive.
 
 Require Export Metalib.Metatheory.
 Require Export Metalib.LibLNgen.
@@ -17,6 +12,15 @@ Import Coq.Classes.RelationClasses.
 Require Import Lia.
 
 Require Import Stlc.DefinitionsSyntax.
+Require Import Coq.Logic.StrictProp.
+From mathcomp Require Import ssrnat ssrbool ssreflect.
+From Hammer Require Import Tactics.
+From Coq Require Import ssreflect ssrfun ssrbool.
+Set Implicit Arguments.
+Unset Strict Implicit.
+Unset Printing Implicit Defensive.
+
+Set Bullet Behavior "Strict Subproofs".
 
 (* This file was originally produced by the LNgen tool. It has been modified to 
    use the well-scoped expressions.
@@ -28,27 +32,7 @@ Require Import Stlc.DefinitionsSyntax.
 
 (* Simplify the equations versions of the functions. *)
 
-Ltac simp_stlc := repeat first [ 
-                       simp subst_exp_wrt_exp
-                     || simp open_exp_wrt_exp
-                     || simp close_exp_wrt_exp
-                     || simp weaken_exp
-                     || simpl size_exp
-                     || simpl fv_exp
-                     || simp increase_fin 
-                     || simp decrease_fin
-                     || simp fin
-                     ].
-
 (* like an inversion tactic for equalities *)
-Ltac noconf_exp := 
-  repeat lazymatch goal with 
-    | [ H : var_b _ = var_b _ |- _ ] => noconf H
-    | [ H : var_f _ = var_f _ |- _ ] => noconf H
-    | [ H : abs _ = abs _ |- _ ] => noconf H
-    | [ H : app _ _ = app _ _ |- _ ] => noconf H
-  end.
-
 
 (** Additional hint declarations. *)
 
@@ -81,25 +65,26 @@ Ltac default_case_split ::=
 (** * Theorems about [weaken] *)
 
 Ltac default_auto ::= auto with arith lngen; tauto.
-Ltac default_autorewrite ::= simp_stlc.
+
 
 Lemma size_exp_weaken_exp :
 (forall n1 (e1 : exp n1),
   size_exp (weaken_exp e1) = size_exp e1).
 Proof.
-  intros n1 e1. induction e1; default_simp.
+  move => n e.
+  elim : n / e; hauto lq:on rew:off.
 Qed.
 
 #[global] Hint Resolve size_exp_weaken_exp : lngen.
 #[export] Hint Rewrite size_exp_weaken_exp using solve [auto] : lngen.  
-#[export] Hint Rewrite size_exp_weaken_exp : weaken_exp.  
+#[export] Hint Rewrite size_exp_weaken_exp : weaken_exp.
 
 Lemma fv_exp_weaken_exp : 
 (forall n1 (e1 : exp n1),
   fv_exp (weaken_exp e1) = fv_exp e1).
 Proof. 
   intros n1 e1.
-  dependent induction e1; program_simpl.
+  dependent induction e1; hauto lq:on.
 Qed.
 
 #[global] Hint Resolve fv_exp_weaken_exp : lngen.
@@ -121,26 +106,40 @@ Lemma size_exp_close_exp_wrt_exp :
 (forall n1 (e1 : exp n1) x1,
   size_exp (close_exp_wrt_exp x1 e1) = size_exp e1).
 Proof.
-intros n1 e1 x1.  
-funelim (close_exp_wrt_exp x1 e1); default_simp. 
+  intros n1 e1 x1.
+  elim : n1 / e1;
+    first (simpl;
+           move => n m h;
+           case : ltnP;
+           sfirstorder).
+  all : hauto lq:on.
 Qed.
 
 #[global] Hint Resolve size_exp_close_exp_wrt_exp : lngen.
 
 Lemma size_exp_open_exp_wrt_exp :
 (forall k (e1 : exp (S k)) (e2 : exp k),
-  ((size_exp e1 <= size_exp (open_exp_wrt_exp e2 e1))%nat)).
+  ((size_exp e1 <= size_exp (open_exp_wrt_exp e1 e2))%nat)).
 Proof.
-intros k e1 e2.
-funelim (open_exp_wrt_exp e2 e1); default_simp; try lia; eauto with lngen.
+  move => k h.
+  dependent induction h.
+  - simpl.
+    move => e2.
+
+  - simpl. lia.
+  - sfirstorder inv:exp,le ctrs:le solve:lia.
+  - hfcrush solve:lia.
 Qed.
 
 Lemma size_exp_open_exp_wrt_exp_var :
 (forall k (e : exp (S k)) x,
-  size_exp (open_exp_wrt_exp (var_f x) e) = size_exp e).
+  size_exp (open_exp_wrt_exp e (var_f x)) = size_exp e).
 Proof.
 intros k e x.
-dependent induction e; default_simp. destruct_option; default_simp.
+dependent induction e.
+- simpl.
+  
+hauto q:on.
 Qed.
 
 #[global] Hint Resolve size_exp_open_exp_wrt_exp_var : lngen.
@@ -150,7 +149,6 @@ Qed.
 (** * Theorems about [open] and [close] *)
 
 Ltac default_auto ::= auto with lngen brute_force; tauto.
-Ltac default_autorewrite ::= simp_stlc.
 
 
 Lemma close_exp_wrt_exp_inj :
@@ -158,20 +156,65 @@ Lemma close_exp_wrt_exp_inj :
   close_exp_wrt_exp x1 e1 = close_exp_wrt_exp x1 e2 ->
   e1 = e2).
 Proof.
-  intros k e1 e2 x1.
-  induction e1, e2; simp close_exp_wrt_exp; intros.
-  all:
-    noconf H;
-    repeat lazymatch goal with
-           | [ H: increase_fin ?X = increase_fin ?Y |- _ ] =>
-               apply increase_fin_inj in H; subst; auto
-           | [ H: increase_fin ?X = gof ?Y |- _ ] => symmetry in H
-           | [ H: gof ?X = increase_fin ?Y |- _ ] =>
-               apply increase_not_n in H; contradiction
-           | [ H: context[?X == ?Y] |- _ ] =>
-               destruct (X == Y); subst; noconf H; auto
-           | _ => f_equal; intuition
-           end.
+  move => k e1 e2 x1.
+  move : e2.
+  elim : k / e1.
+  - dependent inversion e2.
+    + simpl.
+      case ltnP => h0.
+      * case ltnP => h1.
+        hauto lq:on.
+        case => ?; subst.
+        apply sEmpty_ind.
+        inversion s; inversion s0.
+        exfalso; lia.
+      * case ltnP => h1; last hauto lq:on.
+        case => ?; subst.
+        apply sEmpty_ind.
+        inversion s; inversion s0.
+        exfalso; lia.
+    + simpl.
+      case ltnP => h0.
+      * case : eq_dec => ?; subst; last sfirstorder.
+        simpl.
+        case => ?; subst.
+        lia.
+      * case : eq_dec => ?; subst; last sfirstorder.
+        simpl.
+        case => ?; subst.
+        lia.
+    + move => /=.
+      case : ltnP; sfirstorder.
+    + move => /=.
+      case : ltnP; sfirstorder.
+  - dependent inversion e2.
+    + simpl.
+      case : ltnP; case : eq_dec => ? /=; subst.
+      move => ? [?]; subst; lia.
+      sfirstorder.
+      move => ? [?]; subst; lia.
+      sfirstorder.
+    + simpl.
+      case : eq_dec => ?; subst;
+      case : eq_dec => ?; subst; scongruence.
+    + simpl.
+      case : eq_dec => ?; subst; scongruence.
+    + simpl.
+      case : eq_dec => ?; subst; scongruence.
+  - dependent inversion e2.
+    + simpl.
+      case : ltnP; subst; sfirstorder.
+    + simpl.
+      case : eq_dec; subst; sfirstorder.
+    + hauto lq:on rew:off.
+    + scongruence.
+  - dependent inversion e0.
+    simpl.
+    + case : ltnP; subst; sfirstorder.
+    + simpl.
+      case : eq_dec; subst; sfirstorder.
+    + hauto lq:on rew:off.
+    + hauto lq:on rew:off.
 Qed.
 
 #[export] Hint Immediate close_exp_wrt_exp_inj : lngen.
@@ -179,10 +222,14 @@ Qed.
 Lemma close_exp_wrt_exp_open_exp_wrt_exp :
 (forall n1 (e1 : exp (S n1)) x1 ,
   x1 `notin` fv_exp e1 ->
-  close_exp_wrt_exp x1 (open_exp_wrt_exp (var_f x1) e1) = e1).
+  close_exp_wrt_exp x1 (open_exp_wrt_exp e1 (var_f x1)) = e1).
 Proof.
 intros. 
-dependent induction e1.
+dependent induction e1; simpl; default_simp.
+- case : m s H.
+  simpl.
+  case : eq_dec => /=.
+
 all: simp_stlc.
 all: default_simp.
 destruct decrease_fin eqn:EQ; default_simp. 

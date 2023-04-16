@@ -15,6 +15,7 @@ Set Warnings "-notation-overridden".
 Require Import Relation_Operators Program.
 Close Scope program_scope.
 From Coq Require Import Logic.StrictProp.
+From mathcomp Require Import ssrnat ssrbool zify ssreflect.
 
 (* Require Export Stlc.Fin. *)
 
@@ -41,6 +42,7 @@ Scheme Equality for typ.
 (* Expressions are indexed by the number of *bound variables*
    that appear in terms. *)
 
+
 Inductive exp (n : nat) : Set :=  (*r expressions *)
  | var_b : forall m, Squash (m < n) -> exp n
  | var_f : forall (x:var), exp n
@@ -52,6 +54,7 @@ Arguments var_f {n}%type_scope.
 Arguments abs {n}%type_scope.
 Arguments app {n}%type_scope.
 
+
 Definition tm0 : exp 1.
   apply (var_b 0).
   apply squash.
@@ -61,7 +64,7 @@ Defined.
 Definition tm1 : exp 1.
   apply (var_b 0).
   apply squash.
-  apply Nat.le_refl.
+  reflexivity.
 Defined.
 (* tm0 and tm1 have different lt proofs *)
 (* but Coq would happily unify them *)
@@ -122,9 +125,9 @@ From Hammer Require Import Tactics.
 (* Weaken the number of bound variables allowed in an expression by 1 *)
 
 (* bug in the latest coq version *)
-Obligation Tactic := hauto l:on ctrs:Squash inv:Squash.
+Obligation Tactic := hauto l:on ctrs:Squash inv:Squash solve:lia.
 
-Program Fixpoint weaken_exp_le {n m} (prf : n <= m) (e : exp n) : exp m :=
+Program Fixpoint weaken_exp_le {n m} (prf : Squash (n <= m)) (e : exp n) : exp m :=
   match e with
   | var_b b m => var_b b _
   | var_f x => var_f x
@@ -188,15 +191,25 @@ end.
 
 (* This is only correct if we call it with exp 0 *)
 (* YL:Why? I thought it would always be okay if we shift u *)
-Program Fixpoint open_exp_wrt_exp {k:nat} (u:exp k) (e:exp (S k)) : exp k :=
+Check bool_rect.
+
+Check sumbool_rec.
+Program Fixpoint open_exp_wrt_exp {k:nat} (e:exp (S k)) (u:exp k) : exp k :=
   match e with
-  | var_b m prf => match m with
-                  | O => u
-                  | S m' => var_b m' _
-                  end
+  | var_b m prf =>
+      bool_rec (fun x => m < k = x -> exp k)
+        (fun prf' => var_b m _) (* m < k *)
+        (fun prf' =>
+           sumbool_rec (fun y => m == k = y -> exp k)
+             (fun _ _ => u) (* m = k *)
+             (fun _ _ => var_b (m - 1) _) (* m > k *)
+             (m == k)
+             eq_refl)
+        (m < k)
+        eq_refl
   | var_f x => var_f x
-  | abs e => abs (open_exp_wrt_exp (weaken_exp u) e)
-  | app e1 e2 => app (open_exp_wrt_exp u e1) (open_exp_wrt_exp u e2)
+  | abs e => abs (open_exp_wrt_exp e (weaken_exp u))
+  | app e1 e2 => app (open_exp_wrt_exp e1 u) (open_exp_wrt_exp e2 u)
   end.
 
 (*
@@ -241,7 +254,7 @@ Fixpoint open_exp_wrt_exp {k:nat} (u:exp k)
 
 Program Fixpoint close_exp_wrt_exp {k : nat} (x1 : var) (e1 : exp k) : exp (S k) :=
   match e1 with
-  | var_b m prf => var_b (S m) _
+  | var_b m prf => if m < k then var_b m _ else var_b (S m) _
   | var_f x2 =>
       if x1 == x2 then var_b k _ else var_f x2
   | abs e2 => abs (close_exp_wrt_exp x1 e2)
